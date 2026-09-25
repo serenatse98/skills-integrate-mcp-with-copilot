@@ -3,6 +3,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const loginForm = document.getElementById("login-form");
+  const logoutButton = document.getElementById("logout-button");
+  const authStatus = document.getElementById("auth-status");
+  let isAdminSignedIn = false;
+
+  function escapeHtml(value) {
+    const entities = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return String(value).replace(/[&<>"']/g, (character) => entities[character]);
+  }
+
+  function updateAuthControls(username) {
+    isAdminSignedIn = Boolean(username);
+    loginForm.classList.toggle("hidden", isAdminSignedIn);
+    logoutButton.classList.toggle("hidden", !isAdminSignedIn);
+    authStatus.textContent = isAdminSignedIn
+      ? `Signed in as ${username}`
+      : "Not signed in";
+  }
+
+  async function fetchAuthState() {
+    try {
+      const response = await fetch("/auth/me");
+      const auth = await response.json();
+      updateAuthControls(response.ok && auth.authenticated ? auth.username : null);
+    } catch (error) {
+      updateAuthControls(null);
+      console.error("Error checking administrator session:", error);
+    }
+  }
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -12,6 +47,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.querySelectorAll("option:not(:first-child)").forEach((option) => {
+        option.remove();
+      });
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -28,19 +66,21 @@ document.addEventListener("DOMContentLoaded", () => {
               <h5>Participants:</h5>
               <ul class="participants-list">
                 ${details.participants
-                  .map(
-                    (email) =>
-                      `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button></li>`
-                  )
+                  .map((email) => {
+                    const unregisterButton = isAdminSignedIn
+                      ? `<button class="delete-btn" data-activity="${escapeHtml(name)}" data-email="${escapeHtml(email)}" aria-label="Unregister ${escapeHtml(email)} from ${escapeHtml(name)}">Remove</button>`
+                      : "";
+                    return `<li><span class="participant-email">${escapeHtml(email)}</span>${unregisterButton}</li>`;
+                  })
                   .join("")}
               </ul>
             </div>`
             : `<p><em>No participants yet</em></p>`;
 
         activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
+          <h4>${escapeHtml(name)}</h4>
+          <p>${escapeHtml(details.description)}</p>
+          <p><strong>Schedule:</strong> ${escapeHtml(details.schedule)}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
           <div class="participants-container">
             ${participantsHTML}
@@ -67,9 +107,52 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const username = document.getElementById("admin-username").value;
+    const password = document.getElementById("admin-password").value;
+
+    try {
+      const response = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        authStatus.textContent = result.detail || "Sign-in failed";
+        return;
+      }
+
+      loginForm.reset();
+      updateAuthControls(result.username);
+      await fetchActivities();
+    } catch (error) {
+      authStatus.textContent = "Sign-in failed. Please try again.";
+      console.error("Error signing in:", error);
+    }
+  });
+
+  logoutButton.addEventListener("click", async () => {
+    try {
+      const response = await fetch("/auth/logout", { method: "POST" });
+      if (!response.ok) {
+        throw new Error("Sign-out failed");
+      }
+
+      updateAuthControls(null);
+      await fetchActivities();
+    } catch (error) {
+      authStatus.textContent = "Sign-out failed. Please try again.";
+      console.error("Error signing out:", error);
+    }
+  });
+
   // Handle unregister functionality
   async function handleUnregister(event) {
-    const button = event.target;
+    const button = event.currentTarget;
     const activity = button.getAttribute("data-activity");
     const email = button.getAttribute("data-email");
 
@@ -156,5 +239,5 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Initialize app
-  fetchActivities();
+  fetchAuthState().then(fetchActivities);
 });

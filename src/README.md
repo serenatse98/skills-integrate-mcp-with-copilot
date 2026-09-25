@@ -12,25 +12,42 @@ A super simple FastAPI application that allows students to view and sign up for 
 1. Install the dependencies:
 
    ```
-   pip install fastapi uvicorn
+   pip install -r requirements.txt
    ```
 
-2. Run the application:
+2. Configure an administrator account. Do not commit real credentials:
 
    ```
-   python app.py
+   export ADMIN_USERNAME=school-admin
+   export ADMIN_PASSWORD='replace-with-a-unique-password'
+   export SESSION_SECRET_KEY="$(openssl rand -hex 32)"
    ```
 
-3. Open your browser and go to:
+   Set `SESSION_COOKIE_SECURE=true` when serving the app over HTTPS. Leave it unset for local HTTP development.
+
+3. Run the application:
+
+   ```
+   uvicorn app:app --reload --app-dir src
+   ```
+
+4. Open your browser and go to:
    - API documentation: http://localhost:8000/docs
    - Alternative documentation: http://localhost:8000/redoc
+   - Activities page: http://localhost:8000/
 
 ## API Endpoints
 
 | Method | Endpoint                                                          | Description                                                         |
 | ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
-| GET    | `/activities`                                                     | Get all activities with their details and current participant count |
-| POST   | `/activities/{activity_name}/signup?email=student@mergington.edu` | Sign up for an activity                                             |
+| GET    | `/activities`                                                     | Public activity list and participant details                       |
+| POST   | `/activities/{activity_name}/signup?email=student@mergington.edu` | Public activity signup                                              |
+| POST   | `/auth/login`                                                      | Sign in with configured administrator credentials                  |
+| GET    | `/auth/me`                                                         | Check the current administrator session                            |
+| POST   | `/auth/logout`                                                     | Sign out                                                            |
+| DELETE | `/activities/{activity_name}/unregister?email=student@mergington.edu` | Unregister a student (administrator session required)           |
+
+Administrator credentials are read from `ADMIN_USERNAME` and `ADMIN_PASSWORD`. Configure a stable, random `SESSION_SECRET_KEY` in deployed environments so sessions remain valid across restarts. Management endpoints must require the `require_admin` dependency; public activity browsing and signup do not.
 
 ## Data Model
 

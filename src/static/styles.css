@@ -28,6 +28,39 @@ header h1 {
   margin-bottom: 10px;
 }
 
+.auth-controls {
+  max-width: 340px;
+  margin: 20px auto 0;
+  text-align: left;
+}
+
+.auth-controls .form-group {
+  margin-bottom: 12px;
+}
+
+.auth-controls label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.auth-controls input {
+  width: 100%;
+  padding: 9px;
+  border: 1px solid #c5cae9;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.auth-controls button {
+  width: 100%;
+}
+
+.auth-controls p {
+  margin-top: 10px;
+  text-align: center;
+}
+
 main {
   display: flex;
   flex-wrap: wrap;
