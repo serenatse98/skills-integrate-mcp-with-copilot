@@ -5,14 +5,73 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
+import hmac
 import os
+import secrets
 from pathlib import Path
 
-app = FastAPI(title="Mergington High School API",
-              description="API for viewing and signing up for extracurricular activities")
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware import Middleware
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
+
+app = FastAPI(
+    title="Mergington High School API",
+    description="API for viewing and signing up for extracurricular activities",
+    middleware=[
+        Middleware(
+            SessionMiddleware,
+            secret_key=os.environ.get("SESSION_SECRET_KEY") or secrets.token_urlsafe(32),
+            session_cookie="admin_session",
+            max_age=8 * 60 * 60,
+            same_site="lax",
+            https_only=os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true",
+        )
+    ],
+)
+
+
+class LoginCredentials(BaseModel):
+    username: str
+    password: str
+
+
+def require_admin(request: Request):
+    if not request.session.get("admin_username"):
+        raise HTTPException(status_code=401, detail="Administrator sign-in required")
+    return request.session["admin_username"]
+
+
+@app.post("/auth/login")
+def login(credentials: LoginCredentials, request: Request):
+    admin_username = os.environ.get("ADMIN_USERNAME")
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    if not admin_username or not admin_password:
+        raise HTTPException(status_code=503, detail="Administrator credentials are not configured")
+
+    if not (
+        hmac.compare_digest(credentials.username, admin_username)
+        and hmac.compare_digest(credentials.password, admin_password)
+    ):
+        raise HTTPException(status_code=401, detail="Invalid administrator credentials")
+
+    request.session.clear()
+    request.session["admin_username"] = admin_username
+    return {"message": "Signed in", "username": admin_username}
+
+
+@app.post("/auth/logout")
+def logout(request: Request):
+    request.session.clear()
+    return {"message": "Signed out"}
+
+
+@app.get("/auth/me")
+def auth_status(request: Request):
+    username = request.session.get("admin_username")
+    return {"authenticated": username is not None, "username": username}
 
 # Mount the static files directory
 current_dir = Path(__file__).parent
@@ -110,7 +169,7 @@ def signup_for_activity(activity_name: str, email: str):
     return {"message": f"Signed up {email} for {activity_name}"}
 
 
-@app.delete("/activities/{activity_name}/unregister")
+@app.delete("/activities/{activity_name}/unregister", dependencies=[Depends(require_admin)])
 def unregister_from_activity(activity_name: str, email: str):
     """Unregister a student from an activity"""
     # Validate activity exists

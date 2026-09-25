@@ -10,6 +10,21 @@
     <header>
       <h1>Mergington High School</h1>
       <h2>Extracurricular Activities</h2>
+      <div class="auth-controls">
+        <form id="login-form">
+          <div class="form-group">
+            <label for="admin-username">Administrator username</label>
+            <input id="admin-username" name="username" autocomplete="username" required />
+          </div>
+          <div class="form-group">
+            <label for="admin-password">Password</label>
+            <input id="admin-password" name="password" type="password" autocomplete="current-password" required />
+          </div>
+          <button type="submit">Sign In</button>
+        </form>
+        <button id="logout-button" class="hidden" type="button">Sign Out</button>
+        <p id="auth-status" aria-live="polite">Administrator access</p>
+      </div>
     </header>
 
     <main>
